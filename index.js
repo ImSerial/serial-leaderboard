@@ -284,8 +284,8 @@ async function buildLeaderboardEmbed(guildId, type) {
 
   const embed = new EmbedBuilder()
     .setTitle(type === 'message'
-      ? '📊 Statistiques Textuelles de Le Manoir 🏛️'
-      : '🎙️ Statistiques Vocales de Le Manoir 🏛️')
+      ? '📊 Statistiques Textuelles'
+      : '🎙️ Statistiques Vocales')
     .setDescription(description || 'Aucun résultat')
     .setColor(0x2f2b36)
     .setTimestamp();
@@ -460,8 +460,8 @@ async function buildClassementPaginated(gid,type,page=1){
 
   const embed = new EmbedBuilder()
     .setTitle(type==='message'
-      ? '📊 Statistiques Textuelles de Le Manoir 🏛️'
-      : '🎙️ Statistiques Vocales de Le Manoir 🏛️')
+      ? '📊 Statistiques Textuelles'
+      : '🎙️ Statistiques Vocales')
     .setDescription(description || 'Aucun résultat')
     .setColor(0x2f2b36)
     .setFooter({ text:`Page ${safe}/${pages}` })
@@ -664,3 +664,4 @@ client.login(TOKEN).catch(e=>{
   console.error('Login failed', e);
   process.exit(1);
 });
+
