@@ -168,6 +168,9 @@ const commands = [
         { name:'competing', value:'competing' }
       ))
     .addStringOption(opt => opt.setName('texte').setDescription('Texte de l\'activité (optionnel pour streaming)').setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Afficher l\'aide des commandes'),
 ].map(c => c.toJSON());
 
 const rest = new REST({ version:'10' }).setToken(TOKEN);
@@ -364,7 +367,7 @@ async function finalizeAndResetLeaderboard(gid, type) {
         let total=r.voiceSeconds||0;
         const k=`${gid}:${r.userId}`;
         if(activeVoice.has(k)) total+=Math.floor((Date.now()-activeVoice.get(k))/1000);
-                else if(r.voiceJoin) total+=Math.floor((Date.now()-r.voiceJoin*1000)/1000);
+        else if(r.voiceJoin) total+=Math.floor((Date.now()-r.voiceJoin*1000)/1000);
         return {...r, totalSeconds:total};
       }).sort((a,b)=> (b.totalSeconds||0)-(a.totalSeconds||0));
 
@@ -375,7 +378,7 @@ async function finalizeAndResetLeaderboard(gid, type) {
     return `${m} <@${d.userId}> — \`${formatDHMS(d.totalSeconds)}\``;
   });
 
-  // persist winners text so it remains visible (Option A)
+    // persist winners text so it remains visible (Option A)
   const winnersText = winnersLines.join('\n');
   stmtUpdateWinnersText.run(winnersText, gid, type);
 
@@ -599,15 +602,34 @@ client.on('interactionCreate', async interaction => {
         const type = interaction.options.getString('type');
         const texte = interaction.options.getString('texte');
         try {
-          if (type === 'streaming') {
-            await client.user.setActivity(texte || 'Streaming', { type: 1, url: 'https://www.twitch.tv/aneyaris_' });
-          } else {
-            await client.user.setActivity(texte, { type: type === 'playing' ? 0 : type === 'watching' ? 3 : type === 'listening' ? 2 : 5 });
-          }
-          return interaction.reply({ content:`✅ Statut du bot changé en **${type}**${texte ? ` : ${texte}` : ''}.`, ephemeral:true });
+          const activity = type === 'streaming'
+            ? { name: texte || 'Streaming', type: 1, url: 'https://www.twitch.tv/aneyaris_' }
+            : { name: texte || 'Activité', type: type.toUpperCase() };
+          await client.user.setActivity(activity.name, { type: activity.type, url: activity.url });
+          return interaction.reply({ content:`✅ Status du bot changé en **${type}**.`, ephemeral:true });
         } catch (e) {
           return interaction.reply({ content:`❌ Erreur : ${e.message}`, ephemeral:true });
         }
+      }
+
+      // /help
+      if (interaction.commandName === 'help') {
+        const embed = new EmbedBuilder()
+          .setTitle('📋 Aide des Commandes')
+          .setDescription('Voici la liste de toutes les commandes disponibles :')
+          .addFields(
+            { name: '/classement', value: 'Affiche le classement vocal ou message avec pagination.\n**Accessible à :** Tout le monde', inline: false },
+            { name: '/setleaderboard', value: 'Configure un salon pour le leaderboard (message ou vocal) et démarre un cycle de test (4 min).\n**Accessible à :** Owner uniquement', inline: false },
+            { name: '/bot-name', value: 'Change le nom du bot.\n**Accessible à :** Owner uniquement', inline: false },
+            { name: '/bot-avatar', value: 'Change l\'avatar du bot avec un lien.\n**Accessible à :** Owner uniquement', inline: false },
+            { name: '/bot-presence', value: 'Change la présence du bot (dnd, online, idle, invisible).\n**Accessible à :** Owner uniquement', inline: false },
+            { name: '/bot-status', value: 'Change l\'activité du bot (streaming, playing, watching, etc.). Pour streaming, utilise un lien Twitch fixe.\n**Accessible à :** Owner uniquement', inline: false },
+            { name: '/help', value: 'Affiche cette aide.\n**Accessible à :** Tout le monde', inline: false }
+          )
+          .setColor(0x2f2b36)
+          .setTimestamp();
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
       }
     }
 
