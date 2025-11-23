@@ -123,7 +123,7 @@ function fmtNumber(n) { return (n || 0).toLocaleString('en-US'); }
 
 // style
 const MEDALS = ['🥇','🥈','🥉'];
-const COLOR_MARKERS = ['🏴','🏴','🏴','🏴','🏴','🏴','🏴','🏴','🏴','🏴'];
+const COLOR_MARKERS = ['🟢','🔴','🔵','🟣','🟡','🟤','⚫️','⚪️','🟤','🟩'];
 
 // ---------- SLASH COMMANDS ----------
 const commands = [
@@ -137,7 +137,37 @@ const commands = [
     .setDescription('Configurer un salon pour leaderboard (owner only). Démarre le cycle (test 4min).')
     .addStringOption(opt => opt.setName('type').setDescription('message ou vocal').setRequired(true)
       .addChoices({ name:'message', value:'message' },{ name:'vocal', value:'vocal' }))
-    .addChannelOption(opt => opt.setName('salon').setDescription('Salon de publication').setRequired(true))
+    .addChannelOption(opt => opt.setName('salon').setDescription('Salon de publication').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('bot-name')
+    .setDescription('Changer le nom du bot (owner only)')
+    .addStringOption(opt => opt.setName('name').setDescription('Nouveau nom').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('bot-avatar')
+    .setDescription('Changer l\'avatar du bot (owner only)')
+    .addStringOption(opt => opt.setName('photo_lien').setDescription('Lien de la photo').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('bot-presence')
+    .setDescription('Changer la présence du bot (owner only)')
+    .addStringOption(opt => opt.setName('type').setDescription('Type de présence').setRequired(true)
+      .addChoices(
+        { name:'dnd', value:'dnd' },
+        { name:'online', value:'online' },
+        { name:'idle', value:'idle' },
+        { name:'invisible', value:'invisible' }
+      )),
+  new SlashCommandBuilder()
+    .setName('bot-status')
+    .setDescription('Changer le status/activité du bot (owner only)')
+    .addStringOption(opt => opt.setName('type').setDescription('Type d\'activité').setRequired(true)
+      .addChoices(
+        { name:'streaming', value:'streaming' },
+        { name:'playing', value:'playing' },
+        { name:'watching', value:'watching' },
+        { name:'listening', value:'listening' },
+        { name:'competing', value:'competing' }
+      ))
+    .addStringOption(opt => opt.setName('texte').setDescription('Texte de l\'activité (optionnel pour streaming)').setRequired(false)),
 ].map(c => c.toJSON());
 
 const rest = new REST({ version:'10' }).setToken(TOKEN);
@@ -251,8 +281,8 @@ async function buildLeaderboardEmbed(guildId, type) {
 
   const embed = new EmbedBuilder()
     .setTitle(type === 'message'
-      ? '__**Statistiques Textuelles**__'
-      : '__**Statistiques Vocal**__')
+      ? '📊 Statistiques Textuelles de Le Manoir 🏛️'
+      : '🎙️ Statistiques Vocales de Le Manoir 🏛️')
     .setDescription(description || 'Aucun résultat')
     .setColor(0x2f2b36)
     .setTimestamp();
@@ -334,7 +364,7 @@ async function finalizeAndResetLeaderboard(gid, type) {
         let total=r.voiceSeconds||0;
         const k=`${gid}:${r.userId}`;
         if(activeVoice.has(k)) total+=Math.floor((Date.now()-activeVoice.get(k))/1000);
-        else if(r.voiceJoin) total+=Math.floor((Date.now()-r.voiceJoin*1000)/1000);
+                else if(r.voiceJoin) total+=Math.floor((Date.now()-r.voiceJoin*1000)/1000);
         return {...r, totalSeconds:total};
       }).sort((a,b)=> (b.totalSeconds||0)-(a.totalSeconds||0));
 
@@ -427,8 +457,8 @@ async function buildClassementPaginated(gid,type,page=1){
 
   const embed = new EmbedBuilder()
     .setTitle(type==='message'
-      ? '__**Statistiques Textuelles**__'
-      : '__**Statistiques Vocales**__')
+      ? '📊 Statistiques Textuelles de Le Manoir 🏛️'
+      : '🎙️ Statistiques Vocales de Le Manoir 🏛️')
     .setDescription(description || 'Aucun résultat')
     .setColor(0x2f2b36)
     .setFooter({ text:`Page ${safe}/${pages}` })
@@ -517,6 +547,67 @@ client.on('interactionCreate', async interaction => {
 
         // Removed: scheduleLeaderboardUpdate(gid, type, 500); to avoid potential double update
         return;
+      }
+
+      // /bot-name
+      if (interaction.commandName === 'bot-name') {
+        if (interaction.user.id !== OWNER_ID)
+          return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
+
+        const name = interaction.options.getString('name');
+        try {
+          await client.user.setUsername(name);
+          return interaction.reply({ content:`✅ Nom du bot changé en **${name}**.`, ephemeral:true });
+        } catch (e) {
+          return interaction.reply({ content:`❌ Erreur : ${e.message}`, ephemeral:true });
+        }
+      }
+
+      // /bot-avatar
+      if (interaction.commandName === 'bot-avatar') {
+        if (interaction.user.id !== OWNER_ID)
+          return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
+
+        const lien = interaction.options.getString('photo_lien');
+        try {
+          await client.user.setAvatar(lien);
+          return interaction.reply({ content:`✅ Avatar du bot changé.`, ephemeral:true });
+        } catch (e) {
+          return interaction.reply({ content:`❌ Erreur : ${e.message}`, ephemeral:true });
+        }
+      }
+
+      // /bot-presence
+      if (interaction.commandName === 'bot-presence') {
+        if (interaction.user.id !== OWNER_ID)
+          return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
+
+        const type = interaction.options.getString('type');
+        try {
+          await client.user.setPresence({ status: type });
+          return interaction.reply({ content:`✅ Présence du bot changée en **${type}**.`, ephemeral:true });
+        } catch (e) {
+          return interaction.reply({ content:`❌ Erreur : ${e.message}`, ephemeral:true });
+        }
+      }
+
+      // /bot-status
+      if (interaction.commandName === 'bot-status') {
+        if (interaction.user.id !== OWNER_ID)
+          return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
+
+        const type = interaction.options.getString('type');
+        const texte = interaction.options.getString('texte');
+        try {
+          if (type === 'streaming') {
+            await client.user.setActivity(texte || 'Streaming', { type: 1, url: 'https://www.twitch.tv/aneyaris_' });
+          } else {
+            await client.user.setActivity(texte, { type: type === 'playing' ? 0 : type === 'watching' ? 3 : type === 'listening' ? 2 : 5 });
+          }
+          return interaction.reply({ content:`✅ Statut du bot changé en **${type}**${texte ? ` : ${texte}` : ''}.`, ephemeral:true });
+        } catch (e) {
+          return interaction.reply({ content:`❌ Erreur : ${e.message}`, ephemeral:true });
+        }
       }
     }
 
