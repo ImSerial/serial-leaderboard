@@ -1,7 +1,17 @@
 {
+  "name": "leaderboard-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord leaderboard avec commandes slash et SQLite.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Djibril",
+  "license": "MIT",
   "dependencies": {
-    "better-sqlite3": "^12.4.6",
     "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "better-sqlite3": "^12.4.6"
   }
 }
