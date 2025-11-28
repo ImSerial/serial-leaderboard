@@ -20,7 +20,7 @@ import Database from 'better-sqlite3';
 // ---------- CONFIG ----------
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const OWNER_ID = process.env.OWNER_ID || '1133246357960921158';
+const OWNER_IDS = process.env.OWNER_IDS.split(',').map(id => id.trim());
 const DB_PATH = process.env.DB_PATH || './data.sqlite';
 
 if (!TOKEN || !CLIENT_ID) {
@@ -505,7 +505,7 @@ client.on('interactionCreate', async interaction => {
       // /setleaderboard
       if (interaction.commandName === 'setleaderboard') {
 
-        if (interaction.user.id !== OWNER_ID)
+        if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
 
         const type = interaction.options.getString('type');
@@ -554,7 +554,7 @@ client.on('interactionCreate', async interaction => {
 
       // /bot-name
       if (interaction.commandName === 'bot-name') {
-        if (interaction.user.id !== OWNER_ID)
+        if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
 
         const name = interaction.options.getString('name');
@@ -568,7 +568,7 @@ client.on('interactionCreate', async interaction => {
 
       // /bot-avatar
       if (interaction.commandName === 'bot-avatar') {
-        if (interaction.user.id !== OWNER_ID)
+        if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
 
         const lien = interaction.options.getString('photo_lien');
@@ -582,7 +582,7 @@ client.on('interactionCreate', async interaction => {
 
       // /bot-presence
       if (interaction.commandName === 'bot-presence') {
-        if (interaction.user.id !== OWNER_ID)
+        if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
 
         const type = interaction.options.getString('type');
@@ -596,7 +596,7 @@ client.on('interactionCreate', async interaction => {
 
       // /bot-status
       if (interaction.commandName === 'bot-status') {
-        if (interaction.user.id !== OWNER_ID)
+        if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
 
         const type = interaction.options.getString('type');
