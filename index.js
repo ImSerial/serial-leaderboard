@@ -1,7 +1,3 @@
-// index.js - Leaderboards message + vocal (weekly cycles) - SQLite version
-// npm i discord.js better-sqlite3 dotenv
-// .env: TOKEN, CLIENT_ID, OWNER_ID (optional), DB_PATH (optional)
-
 import 'dotenv/config';
 import {
   Client,
@@ -17,7 +13,6 @@ import {
 } from 'discord.js';
 import Database from 'better-sqlite3';
 
-// ---------- CONFIG ----------
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const OWNER_IDS = process.env.OWNER_IDS.split(',').map(id => id.trim());
@@ -31,14 +26,12 @@ if (!TOKEN || !CLIENT_ID) {
 const RESULTS_PER_PAGE = 10;
 const LEADERBOARD_TOP = 10;
 const DEBOUNCE_MS = 2000;
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // production weekly cycle
-const TEST_MS = 4 * 60 * 1000; // 4 minutes test duration used by /setleaderboard
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const TEST_MS = 4 * 60 * 1000;
 
-// ---------- DB init ----------
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
-// users
 db.prepare(`
 CREATE TABLE IF NOT EXISTS users (
   guildId TEXT NOT NULL,
@@ -50,8 +43,6 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (guildId, userId)
 )`).run();
 
-// leaderboards
-// Added timerMessageId and winnersText columns (persist winners so they stay visible)
 db.prepare(`
 CREATE TABLE IF NOT EXISTS leaderboards (
   guildId TEXT NOT NULL,
@@ -66,11 +57,9 @@ CREATE TABLE IF NOT EXISTS leaderboards (
   PRIMARY KEY (guildId, type)
 )`).run();
 
-// If an older DB exists without the new columns, try to add them (safe no-op if column exists)
 try { db.prepare(`ALTER TABLE leaderboards ADD COLUMN timerMessageId TEXT`).run(); } catch (e) {}
 try { db.prepare(`ALTER TABLE leaderboards ADD COLUMN winnersText TEXT`).run(); } catch (e) {}
 
-// prepared statements
 const stmtUpsertUser = db.prepare(`
 INSERT INTO users (guildId,userId,username) VALUES (@g,@u,@n)
 ON CONFLICT(guildId,userId) DO UPDATE SET username = excluded.username
@@ -94,7 +83,6 @@ const stmtUpdateWinnersText = db.prepare(`UPDATE leaderboards SET winnersText = 
 const stmtResetCountsMessages = db.prepare(`UPDATE users SET messages = 0 WHERE guildId = ?`);
 const stmtResetCountsVoice = db.prepare(`UPDATE users SET voiceSeconds = 0, voiceJoin = NULL WHERE guildId = ?`);
 
-// ---------- DISCORD CLIENT ----------
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -108,7 +96,6 @@ const client = new Client({
 const activeVoice = new Map();
 const pendingUpdate = new Map();
 
-// ---------- UTILS ----------
 function formatDHMS(totalSec) {
   totalSec = Math.max(0, Math.floor(totalSec));
   const days = Math.floor(totalSec / 86400);
@@ -121,11 +108,9 @@ function formatDHMS(totalSec) {
 }
 function fmtNumber(n) { return (n || 0).toLocaleString('en-US'); }
 
-// style
 const MEDALS = ['🥇','🥈','🥉'];
 const COLOR_MARKERS = ['🟢','🔴','🔵','🟣','🟡','🟤','⚫️','⚪️','🟤','🟩'];
 
-// ---------- SLASH COMMANDS ----------
 const commands = [
   new SlashCommandBuilder()
     .setName('classement')
@@ -183,7 +168,6 @@ const rest = new REST({ version:'10' }).setToken(TOKEN);
   }
 })();
 
-// ---------- READY ----------
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
@@ -204,7 +188,6 @@ client.once('ready', async () => {
     });
   });
 
-  // check expiry relatively often in test; production could be less frequent
   setInterval(processLeaderboardsExpiry, 15*1000);
   setInterval(() => {
     const rows = stmtGetAllLeaderboards.all();
@@ -212,7 +195,6 @@ client.once('ready', async () => {
   }, 30*1000);
 });
 
-// ---------- MESSAGE TRACKING ----------
 client.on('messageCreate', msg => {
   if (!msg.guild || msg.author.bot) return;
   stmtUpsertUser.run({ g: msg.guild.id, u: msg.author.id, n: msg.member?.displayName || msg.author.username });
@@ -220,7 +202,6 @@ client.on('messageCreate', msg => {
   scheduleLeaderboardUpdate(msg.guild.id, 'message');
 });
 
-// ---------- VOICE TRACKING ----------
 client.on('voiceStateUpdate', (o,n) => {
   if (n.member?.user.bot) return;
   const gid = n.guild.id;
@@ -259,7 +240,6 @@ client.on('voiceStateUpdate', (o,n) => {
   }
 });
 
-// ---------- EMBEDS ----------
 async function buildLeaderboardEmbed(guildId, type) {
   let rows = type === 'message'
     ? stmtGetTopMessages.all(guildId, 100)
@@ -307,7 +287,6 @@ async function buildConfiguredEmbed(gid, type) {
     embed.setFooter({ text: 'Cycle non démarré' });
   }
 
-  // append persisted winners text (Option A: winners remain visible H24)
   if (lb?.winnersText) {
     const base = embed.data.description || '';
     const appended = `${base}\n\n**Les vainqueurs de la semaine :**\n${lb.winnersText}`;
@@ -317,7 +296,6 @@ async function buildConfiguredEmbed(gid, type) {
   return { embed, rows };
 }
 
-// ---------- UPDATE SCHEDULER ----------
 function scheduleLeaderboardUpdate(g,t,d=DEBOUNCE_MS){
   const k = `${g}:${t}`;
   if (pendingUpdate.has(k)) clearTimeout(pendingUpdate.get(k));
@@ -333,7 +311,6 @@ async function doLeaderboardUpdate(gid, type) {
 
     const { embed } = await buildConfiguredEmbed(gid, type);
 
-    // **Note**: Timer message is NOT auto-updated (Option B). We only edit embed (and rely on Discord to show relative time properly).
     if (cfg.messageId) {
       const msg = await ch.messages.fetch(cfg.messageId).catch(()=>null);
       if (msg) return msg.edit({ embeds:[embed] });
@@ -344,7 +321,6 @@ async function doLeaderboardUpdate(gid, type) {
   } catch(e){ console.error('doLeaderboardUpdate err', e); }
 }
 
-// ---------- EXPIRY + RESET ----------
 async function processLeaderboardsExpiry(){
   const rows = stmtGetAllLeaderboards.all();
   for (const lb of rows){
@@ -378,11 +354,9 @@ async function finalizeAndResetLeaderboard(gid, type) {
     return `${m} <@${d.userId}> — \`${formatDHMS(d.totalSeconds)}\``;
   });
 
-    // persist winners text so it remains visible (Option A)
   const winnersText = winnersLines.join('\n');
   stmtUpdateWinnersText.run(winnersText, gid, type);
 
-  // re-build embed (it will now include persisted winnersText)
   const { embed } = await buildConfiguredEmbed(gid,type);
 
   if (cfg.messageId) {
@@ -397,28 +371,23 @@ async function finalizeAndResetLeaderboard(gid, type) {
     stmtUpdateLeaderboardMessage.run(s.id,gid,type);
   }
 
-  // Reset counts (both types handled)
   if (type === 'message') stmtResetCountsMessages.run(gid);
   else stmtResetCountsVoice.run(gid);
 
-  // Pour vocal, réinitialiser les timestamps actifs pour les sessions en cours
   if (type === 'vocal') {
     activeVoice.forEach((start, key) => {
       const [guildId, uid] = key.split(':');
       if (guildId === gid) {
         const now = new Date();
-        activeVoice.set(key, now);  // Remettre le début à maintenant
+        activeVoice.set(key, now);
         stmtSetVoiceJoin.run({ start: Math.floor(now.getTime() / 1000), g: guildId, u: uid });  // Mettre à jour la DB
       }
     });
   }
 
-  // Start a new cycle immediately (production: WEEK_MS; we keep weekly restart)
   const startAt = Date.now();
   const endAt = startAt + WEEK_MS;
   stmtUpsertLeaderboard.run({ g:gid, t:type, c:cfg.channelId, m:cfg.messageId || null, tm: cfg.timerMessageId || null, s:startAt, e:endAt, w:winnersText, a:1 });
-
-  // Update timer message with new timestamp (reprendre à zéro)
   if (cfg.timerMessageId) {
     const timerMsg = await ch.messages.fetch(cfg.timerMessageId).catch(()=>null);
     if (timerMsg) {
@@ -427,11 +396,9 @@ async function finalizeAndResetLeaderboard(gid, type) {
     }
   }
 
-  // schedule update (will show new countdown in footer)
   scheduleLeaderboardUpdate(gid,type,500);
 }
 
-// ---------- /classement pagination ----------
 async function buildClassementPaginated(gid,type,page=1){
   let rows = type==='message'
     ? stmtGetTopMessages.all(gid,100)
@@ -487,13 +454,11 @@ function makePageButtons(type,page,max){
   return row;
 }
 
-// ---------- INTERACTIONS ----------
 client.on('interactionCreate', async interaction => {
   try {
 
     if (interaction.isChatInputCommand()) {
 
-      // /classement
       if (interaction.commandName === 'classement') {
         const type = interaction.options.getString('type');
         await interaction.deferReply();
@@ -502,7 +467,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply({ embeds:[embed], components:[row] });
       }
 
-      // /setleaderboard
       if (interaction.commandName === 'setleaderboard') {
 
         if (!OWNER_IDS.includes(interaction.user.id))
@@ -514,11 +478,8 @@ client.on('interactionCreate', async interaction => {
           return interaction.reply({ content:'Salon invalide.', ephemeral:true });
 
         const startAt = Date.now();
-
-        // TEST mode: 4 minutes as requested (production: use WEEK_MS)
         const endAt = startAt + TEST_MS;
 
-        // upsert leaderboard config (winnersText left as null)
         stmtUpsertLeaderboard.run({
           g: interaction.guildId,
           t: type,
@@ -531,14 +492,10 @@ client.on('interactionCreate', async interaction => {
           a: 1
         });
 
-        // ---- ADDED RESET MESSAGE (timestamp above embed) ----
-        // Option B: send once and DO NOT auto-edit later
         const unix = Math.floor(endAt / 1000);
         const timerMsg = await ch.send(`⏳ Le classement sera réinitialisé <t:${unix}:R>`);
-        // persist timer message id
         stmtUpdateTimerMessage.run(timerMsg.id, interaction.guildId, type);
 
-        // send initial embed and persist
         const { embed } = await buildConfiguredEmbed(interaction.guildId, type);
         const sent = await ch.send({ embeds:[embed] });
         stmtUpdateLeaderboardMessage.run(sent.id, interaction.guildId, type);
@@ -548,11 +505,9 @@ client.on('interactionCreate', async interaction => {
           ephemeral: true
         });
 
-        // Removed: scheduleLeaderboardUpdate(gid, type, 500); to avoid potential double update
         return;
       }
 
-      // /bot-name
       if (interaction.commandName === 'bot-name') {
         if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
@@ -566,7 +521,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // /bot-avatar
       if (interaction.commandName === 'bot-avatar') {
         if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
@@ -580,7 +534,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // /bot-presence
       if (interaction.commandName === 'bot-presence') {
         if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
@@ -594,7 +547,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // /bot-status
       if (interaction.commandName === 'bot-status') {
         if (!OWNER_IDS.includes(interaction.user.id))
           return interaction.reply({ content:"❌ Vous n'avez pas la permission.", ephemeral:true });
@@ -612,7 +564,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // /help
       if (interaction.commandName === 'help') {
         const embed = new EmbedBuilder()
           .setTitle('📋 Aide des Commandes')
@@ -659,9 +610,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ---------- START ----------
 client.login(TOKEN).catch(e=>{
   console.error('Login failed', e);
   process.exit(1);
 });
-
